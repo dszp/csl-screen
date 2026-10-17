@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Local agent guidance; imports private notes from a private repo. Never commit.
+CLAUDE.md
