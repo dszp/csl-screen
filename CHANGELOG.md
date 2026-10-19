@@ -7,6 +7,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-10-18
+
+The library's code and API are unchanged from 0.1.0.
+
+### Changed
+
+- Releases are published from GitHub Actions through npm trusted publishing, so each version from
+  0.1.1 on carries a provenance statement linking it to the commit and workflow that built it.
+- Tests cover the content hash for an added entry, a removed entry, and an empty list.
+
 ## [0.1.0] — 2026-10-17
 
 First release.

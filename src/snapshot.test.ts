@@ -195,6 +195,19 @@ describe('contentSha256', () => {
     expect(two.identity.contentSha256).not.toBe(one.identity.contentSha256);
   });
 
+  test('changes when an entry is added or removed', async () => {
+    const one = await loadSnapshot(cslDocument([a]));
+    const two = await loadSnapshot(cslDocument([a, b]));
+    const three = await loadSnapshot(cslDocument([b]));
+    expect(two.identity.contentSha256).not.toBe(one.identity.contentSha256);
+    expect(three.identity.contentSha256).not.toBe(two.identity.contentSha256);
+    expect(three.identity.contentSha256).not.toBe(one.identity.contentSha256);
+  });
+
+  test('contentHashOf of no entries is the SHA-256 of the empty string', async () => {
+    expect(await contentHashOf([])).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+  });
+
   test('does not depend on entry order', async () => {
     const one = await loadSnapshot(cslDocument([a, b]));
     const two = await loadSnapshot(cslDocument([b, a]));

@@ -1,6 +1,6 @@
 {
   "name": "@dszp/csl-screen",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Restricted-party screening against the US Consolidated Screening List: name normalisation, fuzzy matching and reviewable decisions. Zero runtime dependencies; runs in Node and Cloudflare Workers.",
   "type": "module",
   "license": "MIT",
