@@ -7,6 +7,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-19
+
 ### Changed
 
 - The `within` rule matches a one-token party name only as the listed name's first token, so a
