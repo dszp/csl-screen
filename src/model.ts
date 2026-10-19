@@ -64,7 +64,7 @@ export interface ScreenOptions {
   genericTokens?: readonly string[];
 }
 
-export const MATCHER_VERSION = '2';
+export const MATCHER_VERSION = '3';
 
 export interface ScreenResult {
   check: 'csl';

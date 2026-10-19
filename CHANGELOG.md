@@ -7,6 +7,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The `within` rule matches a one-token party name only as the listed name's first token, so a
+  company named "Test" no longer flags every listed name containing the word "test". Party names of
+  two or more tokens are unchanged. `MATCHER_VERSION` is `3`.
+
 ## [0.1.1] — 2026-10-18
 
 The library's code and API are unchanged from 0.1.0.

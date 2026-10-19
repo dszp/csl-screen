@@ -130,7 +130,9 @@ export function screen(parties: Party[], snapshot: Snapshot, options: ScreenOpti
         rule = 'contains';
         reason = 'contains listed name ignoring spaces';
       }
-      else if (shared === ptoks.size && hasLongToken) rule = 'within';
+      // A one-word party name counts only as the listed name's first word: as a later word ("Sino IC Test",
+      // "Oriental Apple") it is an ordinary word in an unrelated name, measured on real customer names.
+      else if (shared === ptoks.size && hasLongToken && (ptoks.size > 1 || cand.key.split(' ')[0] === tokens[0])) rule = 'within';
       else if (score >= threshold) rule = 'similar';
       if (rule === null) continue;
       const cur = best.get(cand.entry.key);
