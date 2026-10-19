@@ -7,13 +7,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.2.0] — 2026-10-19
+## [0.2.1] — 2026-10-19
 
 ### Changed
 
-- The `within` rule matches a one-token party name only as the listed name's first token, so a
-  company named "Test" no longer flags every listed name containing the word "test". Party names of
-  two or more tokens are unchanged. `MATCHER_VERSION` is `3`.
+- `genericTokens` applies to the `within` rule too: a one-token party name on the list matches only
+  as the listed name's first token, so a company named "Test" no longer flags every listed name
+  containing the word "test". Other party names are unchanged. `MATCHER_VERSION` is `3`.
+- `DEFAULT_GENERIC_TOKENS` adds `apple`, `score` and `test`, each measured on real customer names.
+
+## [0.2.0] — 2026-10-19 (tagged, not published)
+
+Tagged but never published to npm. It restricted every one-token party name in `within` to the
+listed name's first token, which would also have missed a real listed entity ("Melli" inside
+"Bank Melli"). 0.2.1 replaces it.
 
 ## [0.1.1] — 2026-10-18
 

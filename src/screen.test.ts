@@ -220,21 +220,25 @@ describe('screen', () => {
     expect(screen([p('1', 'AB')], snap).parties[0]!.status).toBe('clear');
   });
 
-  test('within: a one-word party name counts only as the listed name\'s first word', async () => {
+  test('within: a one-word generic party name counts only as the listed name\'s first word', async () => {
     const lists = await loadSnapshot(
       cslDocument([
         { id: 'W1', name: 'Sino IC Test' },
         { id: 'W2', name: 'The Test Flying Academy' },
         { id: 'W3', name: 'Oriental Apple Company Pte Ltd' },
         { id: 'W4', name: 'Buy Best Electronic' },
+        { id: 'W5', name: 'Bank Melli' },
       ]),
     );
-    const r = screen([p('1', 'Test'), p('2', 'Apple Inc'), p('3', 'Best Electronic')], lists);
+    const r = screen([p('1', 'Test'), p('2', 'Apple Inc'), p('3', 'Best Electronic'), p('4', 'Melli'), p('5', 'Test')], lists, {});
     // "The" is a stop word, so "test" is the first word of W2; it is a later word of W1.
-    expect(flagged(r, '1').map((m) => `${m.entryId}:${m.rule}`), 'one word, first in W2 only').toEqual(['W2:within']);
-    expect(r.parties[1]!.status, 'one word, later in W3').toBe('clear');
-    // Two or more party words keep the old rule: any position.
+    expect(flagged(r, '1').map((m) => `${m.entryId}:${m.rule}`), 'generic word, first in W2 only').toEqual(['W2:within']);
+    expect(r.parties[1]!.status, 'generic word, later in W3').toBe('clear');
     expect(flagged(r, '3').map((m) => `${m.entryId}:${m.rule}`), 'two words, later in W4').toEqual(['W4:within']);
+    expect(flagged(r, '4').map((m) => `${m.entryId}:${m.rule}`), 'not a generic word, later in W5').toEqual(['W5:within']);
+    // genericTokens replaces the list for both rules; without "test" on it, every position counts again.
+    const none = screen([p('1', 'Test')], lists, { genericTokens: [] });
+    expect(flagged(none, '1').map((m) => m.entryId).sort(), 'no generic words').toEqual(['W1', 'W2']);
   });
 
   test('within needs a party token of at least max(4, minTokenLength)', () => {

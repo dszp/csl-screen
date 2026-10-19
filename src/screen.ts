@@ -19,13 +19,15 @@ type Rule = keyof typeof RULE_RANK;
 /** A one-token listed name on these entry types is too generic (a ship, a nickname) to match inside a longer party name. */
 const NON_ENTITY_TYPES: ReadonlySet<string> = new Set(['Individual', 'Vessel', 'Aircraft']);
 /**
- * One-word listed entity names (after stop words are dropped) too generic to flag anywhere but a party
- * name's first token. Each was measured on real customer names: as a later token it flagged only
- * unrelated organisations using it as an ordinary word.
+ * Words too generic to match inside a longer name anywhere but as its first token, in both directions: a
+ * one-word listed entity name inside a party name (`contains`), and a one-word party name inside a listed
+ * name (`within`). Each was measured on real customer names: as a later token it flagged only unrelated
+ * organisations using it as an ordinary word. `center`, `focus`, `technology` and `united` were measured
+ * as listed names; `apple`, `score` and `test` as party names.
  * A word joins this list only from such a measurement, because each one is a name that can be hidden
  * behind another word.
  */
-export const DEFAULT_GENERIC_TOKENS: readonly string[] = ['center', 'focus', 'technology', 'united'];
+export const DEFAULT_GENERIC_TOKENS: readonly string[] = ['apple', 'center', 'focus', 'score', 'technology', 'test', 'united'];
 
 /** Longest run of adjacent party tokens joined when looking for a listed word split by separators. */
 const MAX_RUN = 3;
@@ -130,9 +132,9 @@ export function screen(parties: Party[], snapshot: Snapshot, options: ScreenOpti
         rule = 'contains';
         reason = 'contains listed name ignoring spaces';
       }
-      // A one-word party name counts only as the listed name's first word: as a later word ("Sino IC Test",
-      // "Oriental Apple") it is an ordinary word in an unrelated name, measured on real customer names.
-      else if (shared === ptoks.size && hasLongToken && (ptoks.size > 1 || cand.key.split(' ')[0] === tokens[0])) rule = 'within';
+      // A one-word party name that is a generic word counts only as the listed name's first word ("Test" is not
+      // inside "Sino IC Test"); any other one-word name counts in any position ("Melli" inside "Bank Melli").
+      else if (shared === ptoks.size && hasLongToken && (ptoks.size > 1 || !genericTokens.has(tokens[0]!) || cand.key.split(' ')[0] === tokens[0])) rule = 'within';
       else if (score >= threshold) rule = 'similar';
       if (rule === null) continue;
       const cur = best.get(cand.entry.key);

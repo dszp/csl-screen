@@ -58,8 +58,8 @@ export interface ScreenOptions {
   /** Shortest token that is indexed and used to find candidates. Default 3. */
   minTokenLength?: number;
   /**
-   * Replaces DEFAULT_GENERIC_TOKENS: one-word listed entity names that match a party only as its first
-   * token. Normalised like names.
+   * Replaces DEFAULT_GENERIC_TOKENS: words that match inside a longer name only as its first token, whether
+   * the word is a one-word listed name (contains) or a one-word party name (within). Normalised like names.
    */
   genericTokens?: readonly string[];
 }
