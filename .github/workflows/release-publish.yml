@@ -187,6 +187,7 @@ jobs:
           TGZ="${files[0]}"
           # Name and version come from the tarball that will be published, not from a checkout.
           NAME=$(tar -xOzf "$TGZ" package/package.json | jq -r .name)
+          [ "$NAME" = "@dszp/csl-screen" ] || { echo "Tarball is ${NAME}, not @dszp/csl-screen." >&2; exit 1; }
           PKG_VERSION=$(tar -xOzf "$TGZ" package/package.json | jq -r .version)
           if [ "$PKG_VERSION" != "$VERSION" ]; then
             echo "Tarball version (${PKG_VERSION}) does not match the release tag (${VERSION})." >&2
