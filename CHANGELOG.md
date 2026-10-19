@@ -16,6 +16,8 @@ The library's code and API are unchanged from 0.1.0.
 - Releases are published from GitHub Actions through npm trusted publishing, so each version from
   0.1.1 on carries a provenance statement linking it to the commit and workflow that built it.
 - Tests cover the content hash for an added entry, a removed entry, and an empty list.
+- The README links [dszp/csl-history](https://github.com/dszp/csl-history), a public history of the
+  list that a run's `contentSha256` or `sha256` can be looked up in.
 
 ## [0.1.0] — 2026-10-17
 

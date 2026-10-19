@@ -108,6 +108,8 @@ The report header lists the parties in the run, how many were screened, and how 
 
 A snapshot carries two hashes. `sha256` covers the downloaded bytes, so it changes whenever the file is republished, including when only `search_performed_at` or a list's `last_imported` moved. `contentSha256` covers the entries alone: it hashes each entry's `key` and `fingerprint`, sorted by key, so it changes only when an entry is added, removed or edited. Compare `contentSha256` to decide whether the list changed. `contentHashOf(entries)` computes the same value from any array of `{ key, fingerprint }`.
 
+trade.gov publishes only the current list. [dszp/csl-history](https://github.com/dszp/csl-history) keeps a public history of it: one commit per content change, and each month's raw download as a release asset. To prove which list a run screened against, look up the run's `contentSha256` (any month) or `sha256` (a monthly download) there.
+
 ## Development
 
 ```sh
