@@ -4,6 +4,12 @@ name: Publish to npm (GitHub Release)
 # the GitHub OIDC identity, which is why the "Ensure Trusted Publishing" step below actively strips
 # any ambient auth: a stray token would silently take precedence and publish WITHOUT provenance.
 #
+# Two jobs, so no repository or dependency code ever runs where the OIDC token can be minted:
+#   build   runs the repo's code (install, test, build, pack) with a read-only token and NO id-token.
+#   publish holds id-token: write and runs nothing from the repo: no checkout, no install. It only
+#           downloads the tarball build produced and hands it to npm. A compromised devDependency
+#           therefore cannot mint a token and publish, or swap in a different tarball unseen.
+#
 # 0.1.0 was published by hand (npm can only configure a trusted publisher on a package that already
 # exists). Every release after that runs here: bump package.json and CHANGELOG, commit, then publish
 # a GitHub Release tagged vX.Y.Z.
@@ -18,24 +24,22 @@ on:
         required: true
         type: string
 
-permissions:
-  id-token: write
-  contents: read
+permissions: {}
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
-    environment: NPM
     permissions:
-      id-token: write   # required: OIDC trusted publishing authenticates with this
       contents: read
-
+    outputs:
+      release_tag: ${{ steps.vars.outputs.release_tag }}
     steps:
       # The tag is untrusted input and reaches both a shell and actions/checkout's `ref:`. Two
       # defenses: pass it via env (never interpolate ${{ }} straight into `run:`, which would splice
       # attacker text into the script), and validate the shape so nothing containing shell
-      # metacharacters, newlines, or a `ref:` traversal can proceed. This job holds id-token: write
-      # and publishes to npm — an injection here is a supply-chain compromise, not a broken build.
+      # metacharacters, newlines, or a `ref:` traversal can proceed. The tag later reaches the
+      # publish job, which holds id-token: write; an injection there is a supply-chain compromise,
+      # not a broken build.
       - name: Resolve and validate release tag
         id: vars
         shell: bash
@@ -61,18 +65,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.vars.outputs.release_tag }}
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: pnpm
-
-      - name: Upgrade npm
-        run: npm install -g npm@latest   # publishing goes through npm; trusted publishing needs a recent one
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -92,8 +94,57 @@ jobs:
       - name: Test
         run: pnpm test    # the offline suite; needs no credentials
 
+      # The production build is the `prepublishOnly` script (clean dist, no source maps). The publish job
+      # passes --ignore-scripts, so the build has to happen here, before the tarball is packed.
       - name: Build
-        run: pnpm build
+        run: pnpm run prepublishOnly
+
+      - name: Pack
+        run: |
+          set -euo pipefail
+          mkdir pack
+          npm pack --ignore-scripts --pack-destination pack
+          test "$(find pack -name '*.tgz' | wc -l)" -eq 1
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package-tarball
+          path: pack/*.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  # Holds id-token: write and runs no repository code: no checkout, no install, no lifecycle scripts.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: NPM
+    permissions:
+      id-token: write   # required: OIDC trusted publishing authenticates with this
+      contents: read
+
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      # Trusted publishing needs npm 11.5.1 or newer. Node 24 bundles a newer one, so nothing is
+      # installed here; an unpinned `npm install -g` would pull unreviewed code into the publishing job.
+      - name: Require npm with trusted publishing support
+        run: |
+          v=$(npm --version)
+          echo "npm ${v}"
+          if [ "$(printf '%s\n%s\n' "$v" 11.5.1 | sort -V | head -n1)" != 11.5.1 ]; then
+            echo "npm ${v} is older than 11.5.1, which trusted publishing requires. Use a newer Node 24 release." >&2
+            exit 1
+          fi
+
+      - name: Download tarball
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package-tarball
+          path: pack
 
       - name: Ensure Trusted Publishing (no npm token auth)
         run: |
@@ -110,29 +161,45 @@ jobs:
           node -e "console.log('OIDC request URL present:', Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_URL))"
           node -e "console.log('NODE_AUTH_TOKEN present:', Boolean(process.env.NODE_AUTH_TOKEN))"
 
-      # A prerelease must NOT become the default install. The tag regex above deliberately accepts
+      # A prerelease must NOT become the default install. The tag regex deliberately accepts
       # v1.2.3-beta.1, and `npm publish` with no --tag silently publishes under `latest` -- so cutting
       # a GitHub prerelease would hand every plain `npm install` a beta. Derive the dist-tag from the
       # version instead: anything with a prerelease identifier goes to `next`, everything else to
       # `latest` (npm's own default, stated explicitly rather than implied).
       - name: Publish
         env:
-          RELEASE_TAG: ${{ steps.vars.outputs.release_tag }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
         run: |
           set -euo pipefail
+          # Re-check the shape of the value that crossed from the build job before using it.
+          if [[ ! "$RELEASE_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "Refusing tag with an unexpected shape: $RELEASE_TAG" >&2
+            exit 1
+          fi
           VERSION="${RELEASE_TAG#v}"
           case "$VERSION" in
             *-*) DIST_TAG=next ;;
             *)   DIST_TAG=latest ;;
           esac
+          shopt -s nullglob
+          files=(pack/*.tgz)
+          [ "${#files[@]}" -eq 1 ] || { echo "expected one tarball, found ${#files[@]}" >&2; exit 1; }
+          TGZ="${files[0]}"
+          # Name and version come from the tarball that will be published, not from a checkout.
+          NAME=$(tar -xOzf "$TGZ" package/package.json | jq -r .name)
+          PKG_VERSION=$(tar -xOzf "$TGZ" package/package.json | jq -r .version)
+          if [ "$PKG_VERSION" != "$VERSION" ]; then
+            echo "Tarball version (${PKG_VERSION}) does not match the release tag (${VERSION})." >&2
+            exit 1
+          fi
           # Every version on npm gets a matching GitHub Release, including one published by hand
           # (the first publish of a new package always is). A Release for a version npm already
           # has is therefore expected, and must succeed as a no-op rather than fail on "cannot
           # publish over the previously published version".
-          NAME=$(node -p "require('./package.json').name")
           if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
             echo "${NAME}@${VERSION} is already on npm; nothing to publish."
             exit 0
           fi
-          echo "Publishing ${VERSION} under dist-tag: ${DIST_TAG}"
-          npm publish --provenance --access public --tag "$DIST_TAG"
+          echo "Publishing ${NAME}@${VERSION} under dist-tag: ${DIST_TAG}"
+          # --ignore-scripts: nothing from the tarball runs here. Provenance still attests this workflow run.
+          npm publish "./${TGZ}" --provenance --access public --tag "$DIST_TAG" --ignore-scripts
