@@ -58,17 +58,22 @@ export interface ScreenOptions {
   /** Shortest token that is indexed and used to find candidates. Default 3. */
   minTokenLength?: number;
   /**
-   * Replaces DEFAULT_GENERIC_TOKENS: words that match inside a longer name only as its first token, whether
-   * the word is a one-word listed name (contains) or a one-word party name (within). Normalised like names.
+   * Replaces DEFAULT_GENERIC_TOKENS: one-word listed entity names that match a party only as its first
+   * token. Normalised like names.
    */
   genericTokens?: readonly string[];
+  /**
+   * Replaces DEFAULT_GENERIC_PARTY_TOKENS: one-word party names that match inside a listed name only as its
+   * first token. Normalised like names.
+   */
+  genericPartyTokens?: readonly string[];
 }
 
 export const MATCHER_VERSION = '3';
 
 export interface ScreenResult {
   check: 'csl';
-  matcher: { version: string; threshold: number; minTokenLength: number; stopWords: string[]; genericTokens: string[] };
+  matcher: { version: string; threshold: number; minTokenLength: number; stopWords: string[]; genericTokens: string[]; genericPartyTokens: string[] };
   snapshot: SnapshotIdentity;
   counts: { parties: number; screened: number; unscreenable: number; clear: number; flagged: number };
   parties: PartyResult[];

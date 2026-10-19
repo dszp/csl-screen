@@ -19,15 +19,21 @@ type Rule = keyof typeof RULE_RANK;
 /** A one-token listed name on these entry types is too generic (a ship, a nickname) to match inside a longer party name. */
 const NON_ENTITY_TYPES: ReadonlySet<string> = new Set(['Individual', 'Vessel', 'Aircraft']);
 /**
- * Words too generic to match inside a longer name anywhere but as its first token, in both directions: a
- * one-word listed entity name inside a party name (`contains`), and a one-word party name inside a listed
- * name (`within`). Each was measured on real customer names: as a later token it flagged only unrelated
- * organisations using it as an ordinary word. `center`, `focus`, `technology` and `united` were measured
- * as listed names; `apple`, `score` and `test` as party names.
+ * One-word listed entity names (after stop words are dropped) too generic to flag anywhere but a party
+ * name's first token. Each was measured on real customer names: as a later token it flagged only
+ * unrelated organisations using it as an ordinary word.
  * A word joins this list only from such a measurement, because each one is a name that can be hidden
  * behind another word.
  */
-export const DEFAULT_GENERIC_TOKENS: readonly string[] = ['apple', 'center', 'focus', 'score', 'technology', 'test', 'united'];
+export const DEFAULT_GENERIC_TOKENS: readonly string[] = ['center', 'focus', 'technology', 'united'];
+/**
+ * The other direction: one-word party names (after stop words are dropped) too generic to flag inside a
+ * listed name anywhere but as its first token. Each was measured on real customer names (2026-10-19): as a
+ * later token of a listed name it flagged only unrelated listed organisations using it as an ordinary word.
+ * A word joins this list only from a measurement in this direction; one measured as a listed name
+ * (DEFAULT_GENERIC_TOKENS) says nothing about it as a party name.
+ */
+export const DEFAULT_GENERIC_PARTY_TOKENS: readonly string[] = ['apple', 'score', 'test'];
 
 /** Longest run of adjacent party tokens joined when looking for a listed word split by separators. */
 const MAX_RUN = 3;
@@ -52,6 +58,7 @@ export function screen(parties: Party[], snapshot: Snapshot, options: ScreenOpti
   const noStops: ReadonlySet<string> = new Set();
   const stopWords = new Set((options.stopWords ?? DEFAULT_STOP_WORDS).flatMap((w) => nameTokens(w, noStops)));
   const genericTokens = new Set((options.genericTokens ?? DEFAULT_GENERIC_TOKENS).flatMap((w) => nameTokens(w, noStops)));
+  const genericPartyTokens = new Set((options.genericPartyTokens ?? DEFAULT_GENERIC_PARTY_TOKENS).flatMap((w) => nameTokens(w, noStops)));
 
   const seenIds = new Set<string>();
   for (const party of parties) {
@@ -134,7 +141,7 @@ export function screen(parties: Party[], snapshot: Snapshot, options: ScreenOpti
       }
       // A one-word party name that is a generic word counts only as the listed name's first word ("Test" is not
       // inside "Sino IC Test"); any other one-word name counts in any position ("Melli" inside "Bank Melli").
-      else if (shared === ptoks.size && hasLongToken && (ptoks.size > 1 || !genericTokens.has(tokens[0]!) || cand.key.split(' ')[0] === tokens[0])) rule = 'within';
+      else if (shared === ptoks.size && hasLongToken && (ptoks.size > 1 || !genericPartyTokens.has(tokens[0]!) || cand.key.split(' ')[0] === tokens[0])) rule = 'within';
       else if (score >= threshold) rule = 'similar';
       if (rule === null) continue;
       const cur = best.get(cand.entry.key);
@@ -175,7 +182,7 @@ export function screen(parties: Party[], snapshot: Snapshot, options: ScreenOpti
   const unscreenable = count('unscreenable');
   return {
     check: 'csl',
-    matcher: { version: MATCHER_VERSION, threshold, minTokenLength, stopWords: [...stopWords].sort(), genericTokens: [...genericTokens].sort() },
+    matcher: { version: MATCHER_VERSION, threshold, minTokenLength, stopWords: [...stopWords].sort(), genericTokens: [...genericTokens].sort(), genericPartyTokens: [...genericPartyTokens].sort() },
     snapshot: snapshot.identity,
     counts: {
       parties: results.length,

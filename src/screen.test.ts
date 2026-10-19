@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { loadSnapshot } from './snapshot.js';
 import { cslDocument } from './testkit.js';
-import { DEFAULT_GENERIC_TOKENS, screen } from './screen.js';
+import { DEFAULT_GENERIC_PARTY_TOKENS, DEFAULT_GENERIC_TOKENS, screen } from './screen.js';
 import type { Party, PartyResult, ScreenResult } from './model.js';
 
 const snap = await loadSnapshot(
@@ -236,9 +236,16 @@ describe('screen', () => {
     expect(r.parties[1]!.status, 'generic word, later in W3').toBe('clear');
     expect(flagged(r, '3').map((m) => `${m.entryId}:${m.rule}`), 'two words, later in W4').toEqual(['W4:within']);
     expect(flagged(r, '4').map((m) => `${m.entryId}:${m.rule}`), 'not a generic word, later in W5').toEqual(['W5:within']);
-    // genericTokens replaces the list for both rules; without "test" on it, every position counts again.
-    const none = screen([p('1', 'Test')], lists, { genericTokens: [] });
-    expect(flagged(none, '1').map((m) => m.entryId).sort(), 'no generic words').toEqual(['W1', 'W2']);
+    // genericPartyTokens replaces the list; without "test" on it, every position counts again.
+    const none = screen([p('1', 'Test')], lists, { genericPartyTokens: [] });
+    expect(flagged(none, '1').map((m) => m.entryId).sort(), 'no generic party words').toEqual(['W1', 'W2']);
+    expect(none.matcher.genericPartyTokens, 'reported').toEqual([]);
+    // The listed-name list does not restrict within: "United" was measured only as a listed name.
+    const united = await loadSnapshot(cslDocument([{ id: 'U1', name: 'Sudan United Trading' }]));
+    expect(flagged(screen([p('1', 'United')], united), '1').map((m) => `${m.entryId}:${m.rule}`), 'listed-name list').toEqual(['U1:within']);
+    // Nor does the party-name list restrict contains: a listed one-word "Test" entity still counts anywhere.
+    const listedTest = await loadSnapshot(cslDocument([{ id: 'X1', name: 'TEST', type: 'Entity' }]));
+    expect(flagged(screen([p('1', 'Acme Test Labs')], listedTest), '1').map((m) => `${m.entryId}:${m.rule}`), 'party-name list').toEqual(['X1:contains']);
   });
 
   test('within needs a party token of at least max(4, minTokenLength)', () => {
@@ -296,7 +303,7 @@ describe('screen', () => {
   test('partyNameKey, matcher metadata and snapshot identity are reported', () => {
     const r = screen([p('1', 'Huawei Technologies, Inc.')], snap, { stopWords: ['inc'] });
     expect(r.parties[0]!.partyNameKey).toBe('huawei technologies');
-    expect(r.matcher).toEqual({ version: '3', threshold: 0.9, minTokenLength: 3, stopWords: ['inc'], genericTokens: [...DEFAULT_GENERIC_TOKENS].sort() });
+    expect(r.matcher).toEqual({ version: '3', threshold: 0.9, minTokenLength: 3, stopWords: ['inc'], genericTokens: [...DEFAULT_GENERIC_TOKENS].sort(), genericPartyTokens: [...DEFAULT_GENERIC_PARTY_TOKENS].sort() });
     expect(r.snapshot).toBe(snap.identity);
     expect(r.check).toBe('csl');
     const d = screen([], snap);

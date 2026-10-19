@@ -16,7 +16,7 @@ const party = (id: string, name: string, country?: string): Party => ({ id, name
 const flagged = (p: Party, matches: Match[]): PartyResult => ({ party: p, partyNameKey: 'k', status: 'flagged', matches });
 const make = (parties: PartyResult[]): ScreenResult => ({
   check: 'csl',
-  matcher: { version: '2', threshold: 0.9, minTokenLength: 3, stopWords: [], genericTokens: [] },
+  matcher: { version: '2', threshold: 0.9, minTokenLength: 3, stopWords: [], genericTokens: [], genericPartyTokens: [] },
   snapshot: {
     searchPerformedAt: '2026-01-01T00:00:00+00:00',
     sources: [{ source: 'Entity List', sourceLastUpdated: '2026-01-01', lastImported: null }],
