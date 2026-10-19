@@ -8,7 +8,12 @@ name: Publish to npm (GitHub Release)
 #   build   runs the repo's code (install, test, build, pack) with a read-only token and NO id-token.
 #   publish holds id-token: write and runs nothing from the repo: no checkout, no install. It only
 #           downloads the tarball build produced and hands it to npm. A compromised devDependency
-#           therefore cannot mint a token and publish, or swap in a different tarball unseen.
+#           therefore cannot mint a token, publish another package, or override how npm publishes. It
+#           runs in build, so it could still alter what build packs: review lockfile changes.
+#
+# A manual run must be dispatched FROM the tag (gh workflow run release-publish.yml --ref vX.Y.Z -f
+# tag=vX.Y.Z). The NPM environment admits only v* refs, and build refuses a ref that is not the tag,
+# so the commit in the provenance statement is always the commit that was built.
 #
 # 0.1.0 was published by hand (npm can only configure a trusted publisher on a package that already
 # exists). Every release after that runs here: bump package.json and CHANGELOG, commit, then publish
@@ -55,8 +60,12 @@ jobs:
           # grep matches line-by-line, so it happily passes a multi-line value whose first line looks
           # like a version. Verified.) bash's [[ =~ ]] anchors to the whole string.
           case "$TAG" in *$'\n'*|*$'\r'*) echo "Refusing tag containing a newline."; exit 1;; esac
-          if [[ ! "$TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
             echo "Refusing tag with an unexpected shape: $TAG"
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/tags/$TAG" ]; then
+            echo "Run ref ${GITHUB_REF} is not refs/tags/${TAG}; dispatch the workflow from the tag." >&2
             exit 1
           fi
           printf 'release_tag=%s\n' "$TAG" >> "$GITHUB_OUTPUT"
@@ -172,7 +181,7 @@ jobs:
         run: |
           set -euo pipefail
           # Re-check the shape of the value that crossed from the build job before using it.
-          if [[ ! "$RELEASE_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
             echo "Refusing tag with an unexpected shape: $RELEASE_TAG" >&2
             exit 1
           fi
@@ -188,6 +197,9 @@ jobs:
           # Name and version come from the tarball that will be published, not from a checkout.
           NAME=$(tar -xOzf "$TGZ" package/package.json | jq -r .name)
           [ "$NAME" = "@dszp/csl-screen" ] || { echo "Tarball is ${NAME}, not @dszp/csl-screen." >&2; exit 1; }
+          PUBLISH_CONFIG=$(tar -xOzf "$TGZ" package/package.json | jq -c '.publishConfig // {}')
+          [ "$PUBLISH_CONFIG" = '{"access":"public"}' ] \
+            || { echo "Unexpected publishConfig in tarball: ${PUBLISH_CONFIG}" >&2; exit 1; }
           PKG_VERSION=$(tar -xOzf "$TGZ" package/package.json | jq -r .version)
           if [ "$PKG_VERSION" != "$VERSION" ]; then
             echo "Tarball version (${PKG_VERSION}) does not match the release tag (${VERSION})." >&2
